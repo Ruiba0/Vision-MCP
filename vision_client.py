@@ -1,10 +1,16 @@
-"""视觉模型调用模块：读图 → base64 → 调 OpenAI 兼容接口 → 返回文字。"""
+"""视觉模型调用模块：读图 -> base64 -> 调 OpenAI 兼容接口 -> 返回文字。
+
+只用标准库（urllib），不依赖 openai SDK，兼容 Python 3.8+。
+"""
+
+from __future__ import annotations
 
 import base64
 import json
+import socket
+import urllib.error
+import urllib.request
 from pathlib import Path
-
-from openai import OpenAI, OpenAIError
 
 CONFIG_PATH = Path(__file__).parent / "config.json"
 
@@ -16,6 +22,8 @@ SUPPORTED_EXTS = {
     "webp": "image/webp",
     "bmp": "image/bmp",
 }
+
+TIMEOUT_SECONDS = 120
 
 
 def load_config() -> dict:
@@ -46,6 +54,42 @@ def encode_image(path: str, max_bytes: int) -> tuple[str, str] | str:
     return b64, SUPPORTED_EXTS[ext]
 
 
+def call_vision_api(api_base: str, api_key: str, model: str, messages: list) -> str:
+    """POST {api_base}/chat/completions，返回文字或错误信息。"""
+    url = api_base.rstrip("/") + "/chat/completions"
+    payload = json.dumps({"model": model, "messages": messages}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
+            body = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        return f"视觉模型调用失败 (HTTP {e.code}): {detail[:500]}"
+    except urllib.error.URLError as e:
+        reason = getattr(e, "reason", e)
+        if isinstance(reason, socket.timeout):
+            return f"视觉模型调用超时（{TIMEOUT_SECONDS} 秒）"
+        return f"视觉模型连接失败: {reason}，请检查 vision_api_base 是否正确"
+    except socket.timeout:
+        return f"视觉模型调用超时（{TIMEOUT_SECONDS} 秒）"
+
+    try:
+        data = json.loads(body)
+        content = data["choices"][0]["message"]["content"]
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+        return f"视觉模型返回格式异常: {body[:500]}"
+
+    return content or "(视觉模型返回空内容)"
+
+
 def describe_image(path: str, question: str = "详细描述这张图片的内容") -> str:
     cfg = load_config()
     if isinstance(cfg, dict) and "error" in cfg:
@@ -58,28 +102,24 @@ def describe_image(path: str, question: str = "详细描述这张图片的内容
 
     if not all([api_base, api_key, model]):
         return "config.json 缺少必要字段: vision_api_base / vision_api_key / vision_model"
-    if "在此填入你的key" in api_key:
-        return "config.json 里的 vision_api_key 还没填，请先编辑配置文件"
+    if "在此填入" in api_key:
+        return "config.json 里的 vision_api_key 还是占位符，请先编辑配置文件"
+
+    try:
+        max_bytes = int(max_bytes)
+    except (TypeError, ValueError):
+        return f"config.json 里的 max_image_bytes 应为数字，当前值: {max_bytes!r}"
 
     result = encode_image(path, max_bytes)
     if isinstance(result, str):
         return result
     b64, mime = result
 
-    try:
-        client = OpenAI(base_url=api_base, api_key=api_key)
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
-                    {"type": "text", "text": question},
-                ],
-            }],
-        )
-        return resp.choices[0].message.content or "(视觉模型返回空内容)"
-    except OpenAIError as e:
-        return f"视觉模型调用失败: {e}"
-    except Exception as e:
-        return f"未知错误: {type(e).__name__}: {e}"
+    messages = [{
+        "role": "user",
+        "content": [
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+            {"type": "text", "text": question},
+        ],
+    }]
+    return call_vision_api(api_base, api_key, model, messages)

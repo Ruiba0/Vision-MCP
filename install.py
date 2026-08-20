@@ -2,12 +2,12 @@
 """Vision MCP 一键安装脚本
 
 功能：
-1. 安装 Python 依赖
-2. 交互式配置视觉模型（提供常见模型预设）
-3. 注册 MCP 到 Claude Code
-4. 注册 MCP 到 Codex
-5. 在 CLAUDE.md / AGENTS.md 中添加图片处理规则
+1. 交互式配置视觉模型（直接填 base URL / 模型名 / API key，附常见供应商参考）
+2. 注册 MCP 到 Claude Code
+3. 注册 MCP 到 Codex
+4. 在 CLAUDE.md / AGENTS.md 中添加图片处理规则
 
+项目零第三方依赖（纯标准库），无需 pip 安装。
 幂等：可重复运行，已有配置会跳过或询问后覆盖。
 """
 
@@ -19,8 +19,6 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).parent.absolute()
 SERVER_PATH = PROJECT_DIR / "server.py"
 CONFIG_PATH = PROJECT_DIR / "config.json"
-CONFIG_EXAMPLE = PROJECT_DIR / "config.example.json"
-REQUIREMENTS = PROJECT_DIR / "requirements.txt"
 
 CLAUDE_MD = Path.home() / ".claude" / "CLAUDE.md"
 AGENTS_MD = Path.home() / ".codex" / "AGENTS.md"
@@ -37,24 +35,9 @@ IMAGE_RULE = """## 图片处理
 - 用户明确要求"用 MCP 看"或"调视觉模型"时，无论主模型是否支持视觉，都调用 describe_image 工具
 """
 
-PRESETS = {
-    "1": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-vl-max", "Qwen-VL (阿里 DashScope)"),
-    "2": ("https://open.bigmodel.cn/api/paas/v4", "glm-4v-plus", "GLM-4V (智谱)"),
-    "3": ("https://api.openai.com/v1", "gpt-4o", "GPT-4o (OpenAI)"),
-    "4": ("https://ark.cn-beijing.volces.com/api/v3", "doubao-1.5-vision-pro", "Doubao (火山引擎)"),
-    "5": (None, None, "自定义"),
-}
-
 
 def step(msg):
     print(f"\n=== {msg} ===")
-
-
-def install_deps():
-    step("安装 Python 依赖")
-    subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", "-r", str(REQUIREMENTS)]
-    )
 
 
 def configure_vision_model():
@@ -66,24 +49,19 @@ def configure_vision_model():
             print("跳过配置")
             return
 
-    print("选择视觉模型:")
-    for k, (_, _, label) in PRESETS.items():
-        print(f"  {k}. {label}")
+    print("任意 OpenAI 兼容接口均可。常见 base URL 供参考:")
+    print("  阿里 DashScope:  https://dashscope.aliyuncs.com/compatible-mode/v1")
+    print("  智谱:            https://open.bigmodel.cn/api/paas/v4")
+    print("  OpenAI:          https://api.openai.com/v1")
+    print("  火山引擎 Ark:    https://ark.cn-beijing.volces.com/api/v3")
+    print("  （不要带 /chat/completions 后缀，工具会自动拼接）")
 
-    while True:
-        choice = input("选择 (1-5): ").strip()
-        if choice in PRESETS:
-            break
-        print("无效选择，请输入 1-5")
-
-    api_base, model, _ = PRESETS[choice]
-    if api_base is None:
-        api_base = input("vision_api_base: ").strip()
-        model = input("vision_model: ").strip()
-
+    api_base = input("vision_api_base: ").strip()
+    model = input("vision_model（Doubao 需填接入点 ID，如 ep-xxxx）: ").strip()
     api_key = input("vision_api_key: ").strip()
-    if not api_key:
-        print("API key 不能为空")
+
+    if not all([api_base, model, api_key]):
+        print("base URL / 模型名 / API key 三项都不能为空")
         sys.exit(1)
 
     config = {
@@ -107,26 +85,31 @@ def register_claude_code():
     except (FileNotFoundError, subprocess.CalledProcessError):
         print("未检测到 claude 命令，跳过 Claude Code 注册")
         print(
-            "请手动执行: claude mcp add vision -- python "
+            "请手动执行: claude mcp add --scope user vision -- python "
             + str(SERVER_PATH).replace("\\", "/")
         )
         return
 
     subprocess.run(
-        ["claude", "mcp", "remove", "vision"], capture_output=True
+        ["claude", "mcp", "remove", "vision", "-s", "user"], capture_output=True
+    )
+    subprocess.run(
+        ["claude", "mcp", "remove", "vision", "-s", "local"], capture_output=True
     )
     subprocess.check_call(
         [
             "claude",
             "mcp",
             "add",
+            "--scope",
+            "user",
             "vision",
             "--",
             sys.executable,
             str(SERVER_PATH),
         ]
     )
-    print("已注册到 Claude Code")
+    print("已注册到 Claude Code（user 作用域，全局可用）")
 
 
 def register_codex():
@@ -177,12 +160,15 @@ def patch_md(path: Path):
 
 
 def main():
+    if sys.version_info < (3, 8):
+        print(f"错误: 需要 Python 3.8+，当前是 {sys.version.split()[0]}")
+        sys.exit(1)
+
     print("Vision MCP 安装脚本")
     print(f"项目目录: {PROJECT_DIR}")
     print(f"Python: {sys.executable}")
 
     steps = [
-        ("安装依赖", install_deps),
         ("配置视觉模型", configure_vision_model),
         ("注册 Claude Code", register_claude_code),
         ("注册 Codex", register_codex),

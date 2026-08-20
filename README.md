@@ -13,6 +13,8 @@
 
 主模型全程不接触图片二进制，所以纯文本模型也能用。
 
+项目**零第三方依赖**（纯 Python 标准库），Python 3.8+ 即可运行，无需 pip 安装。
+
 ## 一键安装
 
 ```bash
@@ -23,8 +25,7 @@ python install.py
 
 安装脚本会交互式地完成：
 
-- 安装 Python 依赖（`mcp`、`openai`）
-- 让你选择视觉模型并填入 API key
+- 让你填入视觉模型的 base URL / 模型名 / API key（附常见供应商参考）
 - 注册 MCP 到 Claude Code（`claude mcp add`）
 - 注册 MCP 到 Codex（写入 `~/.codex/config.toml`）
 - 在 `~/.claude/CLAUDE.md` 和 `~/.codex/AGENTS.md` 中添加图片处理规则
@@ -35,13 +36,7 @@ python install.py
 
 如果不想用安装脚本：
 
-1. **安装依赖**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **配置视觉模型**
+1. **配置视觉模型**
 
    复制 `config.example.json` 为 `config.json`，填入你的视觉模型配置：
 
@@ -54,13 +49,15 @@ python install.py
    }
    ```
 
-3. **注册到 Claude Code**
+2. **注册到 Claude Code**
 
    ```bash
-   claude mcp add vision -- python /绝对路径/server.py
+   claude mcp add --scope user vision -- python /绝对路径/server.py
    ```
 
-4. **注册到 Codex**
+   加 `--scope user` 使其全局可用（不加则只在当前目录生效）。
+
+3. **注册到 Codex**
 
    编辑 `~/.codex/config.toml`，加入：
 
@@ -70,7 +67,7 @@ python install.py
    args = ["/绝对路径/server.py"]
    ```
 
-5. **添加图片处理规则**
+4. **添加图片处理规则**
 
    在 `~/.claude/CLAUDE.md` 和 `~/.codex/AGENTS.md` 中加入以下内容（让主模型遇到图片时主动调用工具）：
 
@@ -120,21 +117,20 @@ python install.py
 
 ```
 vision-mcp/
-├── server.py              # MCP 服务，注册 describe_image 工具
-├── vision_client.py       # 视觉模型调用（OpenAI 兼容协议）
+├── server.py              # MCP 服务（内置 stdio JSON-RPC 实现，无 SDK 依赖）
+├── vision_client.py       # 视觉模型调用（OpenAI 兼容协议，urllib 实现）
 ├── config.example.json    # 配置模板（提交到 git）
 ├── config.json            # 你的实际配置（gitignored）
-├── requirements.txt
 ├── install.py             # 一键安装脚本
 └── README.md
 ```
 
 ## 常见问题
 
-**Q: 调用报 `APIConnectionError`**
-检查 `vision_api_base` 路径是否正确。OpenAI SDK 会在 base URL 后拼 `/chat/completions`，所以 base URL 不要带 `/chat/completions` 后缀。
+**Q: 调用报 `视觉模型连接失败`**
+检查 `vision_api_base` 路径是否正确。工具会在 base URL 后拼 `/chat/completions`，所以 base URL 不要带 `/chat/completions` 后缀。
 
-**Q: 调用报 `401 AuthenticationError`**
+**Q: 调用报 `HTTP 401`**
 API key 无效或没有该模型权限，检查 `vision_api_key` 和 `vision_model` 是否匹配对应平台。
 
 **Q: 主模型不主动调用工具**
@@ -145,9 +141,7 @@ API key 无效或没有该模型权限，检查 `vision_api_key` 和 `vision_mod
 
 ## 依赖
 
-- Python 3.10+
-- `mcp` >= 1.2.0
-- `openai` >= 1.50.0
+- Python 3.8+（纯标准库，无需 pip 安装任何包）
 
 ## License
 
