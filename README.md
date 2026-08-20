@@ -20,8 +20,10 @@
 ```bash
 git clone https://github.com/Ruiba0/Vision-MCP.git
 cd vision-mcp
-python install.py
+python3 install.py
 ```
+
+> Windows 下没有 `python3` 命令，用 `python install.py` 即可；下文所有 `python3` 同理。
 
 安装脚本会交互式地完成：
 
@@ -52,7 +54,7 @@ python install.py
 2. **注册到 Claude Code**
 
    ```bash
-   claude mcp add --scope user vision -- python /绝对路径/server.py
+   claude mcp add --scope user vision -- python3 /绝对路径/server.py
    ```
 
    加 `--scope user` 使其全局可用（不加则只在当前目录生效）。
@@ -63,7 +65,7 @@ python install.py
 
    ```toml
    [mcp_servers.vision]
-   command = "python"
+   command = "python3"
    args = ["/绝对路径/server.py"]
    ```
 
@@ -100,9 +102,11 @@ python install.py
 
 安装完成后重启 Claude Code / Codex，在对话中：
 
-- "去 D:/temp/diagram.png 看看这张图"
-- "分析一下 C:/screenshots/error.jpg 里的报错"
-- "识别 D:/notes/page1.jpeg 里所有文字"
+- "去 ~/Desktop/diagram.png 看看这张图"
+- "分析一下 ~/Screenshots/error.jpg 里的报错"
+- "识别 ~/Documents/notes/page1.jpeg 里所有文字"
+
+（Windows 上路径形如 `D:/temp/diagram.png`，按你的系统写即可）
 
 主模型会自动调用 `describe_image` 工具，工具返回视觉模型的文字描述，主模型基于描述继续回答。
 
@@ -137,7 +141,7 @@ API key 无效或没有该模型权限，检查 `vision_api_key` 和 `vision_mod
 确认 `CLAUDE.md` / `AGENTS.md` 里的图片处理规则已添加。规则里的关键词（图片、查看、分析）会引导主模型调用 `describe_image`。
 
 **Q: 想换视觉模型**
-编辑 `config.json` 修改三个字段即可，代码不用动。或重跑 `python install.py` 重新配置。
+编辑 `config.json` 修改三个字段即可，代码不用动。或重跑 `python3 install.py` 重新配置。
 
 ## 依赖
 

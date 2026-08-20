@@ -194,7 +194,7 @@ def main():
     print(
         "\n下一步:\n"
         "1. 重启 Claude Code 和 Codex\n"
-        "2. 在对话中说\"去 D:/xxx/yyy.png 看看这张图\"测试\n"
+        "2. 在对话中说\"去 ~/xxx/yyy.png 看看这张图\"测试（Windows 路径形如 D:/xxx/yyy.png）\n"
         f"3. 如需修改视觉模型配置，编辑: {CONFIG_PATH}"
     )
 
