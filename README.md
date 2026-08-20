@@ -18,7 +18,7 @@
 ## 一键安装
 
 ```bash
-git clone https://github.com/yourname/vision-mcp.git
+git clone https://github.com/Ruiba0/Vision-MCP.git
 cd vision-mcp
 python install.py
 ```
